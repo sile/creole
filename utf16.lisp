@@ -3,7 +3,7 @@
 ;;;;;;;;;;;
 ;;; declaim
 (declaim (inline low-surrogate high-surrogate 
-		 decode-surrogate-pair to-utf16le-code))
+		 decode-surrogate-pair to-utf16le-code to-utf16be-code))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;;; auxiliary function
