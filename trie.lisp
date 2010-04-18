@@ -4,17 +4,16 @@
 
 (defstruct trie
   (base #() :type (simple-array (or character fixnum)) :read-only t)
-  (chck #() :type (simple-array (unsigned-byte 16))    :read-only t))
+  (chck #() :type (simple-array (signed-byte 16))      :read-only t))
 
 (defun load-trie (path)
-  (let ((size (with-open-file (in path) (/ (file-length in) 6))))
-    (make-trie
-     :base (with-open-file (in path :element-type '(signed-byte 32))
-             (map 'vector (lambda (a) (if (minusp a) (code-char (1- (- a))) a))
-		  (read-seq in size)))
-     :chck (with-open-file (in path :element-type '(unsigned-byte 16))
-             (file-position in (* size 2))
-	     (read-seq in size)))))
+  (with-open-file (in path :element-type 'octet)
+    (let ((size (/ (file-length in) 6)))
+      (make-trie
+       :base (map 'vector (lambda (a) (if (minusp a) (code-char (1- (- a))) a))
+		  (read-little-endian-bytes in 4 size))
+       :chck (progn (file-position in (* size 4))
+		    (read-little-endian-bytes in 2 size))))))
 
 (defun next-index (node code)
   (+ node code))
