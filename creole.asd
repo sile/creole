@@ -11,7 +11,7 @@
 	       (:file "util")
 	       (:file "trie")
 	       (:file "external-format")
-	       (:file "utf8")
 	       (:file "utf16")
+	       (:file "utf8")
 	       (:file "string-to-octets")
 	       (:file "octets-to-string")))

@@ -32,7 +32,7 @@
     (let ((node (aref base 0)))
       (loop FOR i fixnum FROM start BELOW (length octets) 
 	    FOR code OF-TYPE octet = (aref octets i) 
-	    FOR idx OF-TYPE fixnum = (next-index (the fixnum node) code) DO
+	    FOR idx OF-TYPE array-index = (next-index (the fixnum node) code) DO
         (setf node (aref base idx))
 	
 	(unless (= (aref chck idx) code)

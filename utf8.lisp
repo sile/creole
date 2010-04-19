@@ -3,30 +3,7 @@
 ;;;;;;;;;;;
 ;;; declaim
 (declaim (inline bit-off? bit-val 10xxxxxx-p 
-		 utf8-octets-to-unicode utf8-octets-to-string
-		 utf8-string-to-octets))
-
-;;;;;;;;;;;;
-;;; constant
-#-SBCL
-(defconst-onceonly +UNICODE=>UTF8+
-  (let ((table (make-array #x10000)))
-    (loop FOR code FROM #x0 BELOW #x100 DO
-      (setf (aref table code) 
-	    (coerce `(,code) 
-		    '(vector octet))))
-    (loop FOR code FROM #x100 BELOW #x800 DO
-      (setf (aref table code) 
-	    (coerce `(,(+ #b11000000 (ldb (byte 5 6) code))
-		      ,(+ #b10000000 (ldb (byte 6 0) code)))
-		    '(vector octet))))
-    (loop FOR code FROM #x800 BELOW #x10000 DO
-      (setf (aref table code) 
-	    (coerce `(,(+ #b11100000 (ldb (byte 4 12) code))
-		      ,(+ #b10000000 (ldb (byte 6 6) code))
-		      ,(+ #b10000000 (ldb (byte 6 0) code)))
-		    '(vector octet))))
-    table))
+		 utf8-octets-to-unicode utf8-octets-to-string))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;;; internal function
@@ -108,33 +85,51 @@
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; string => octets
-(defun utf8-string-to-octets (string)
+(declaim (inline utf8-octets-length))
+(defun utf8-octets-length (string)
   (declare (optimize (speed 3) (debug 0) (safety 0) (compilation-speed 0))
 	   (simple-string string))
-  ;; TODO: 全部自作する
-  #+SBCL (sb-ext:string-to-octets string :external-format :utf-8)
-  #-SBCL
   (let ((len 0))
     (declare (fixnum len))
-    
-    (loop FOR ch ACROSS string
+    (loop FOR ch ACROSS string 
 	  FOR cd = (char-code ch) DO
-      (cond ((< cd #x80)    (incf len 1))
-	    ((< cd #x800)   (incf len 2))
-	    ((< cd #x10000) (incf len 3))
-	    (t              (incf len 4))))
+      (incf len 
+	    (cond ((<= cd #x80) 1)
+		  ((<= cd #x800) 2)
+		  ((<= cd #x10000) 3)
+		  (t 4))))
+    len))
 
-    ;; TODO: if len = str-len
-    (let ((octets (make-array len :element-type 'octet))
-	  (i -1))
-      (declare (fixnum i))
+(defun utf8-string-to-octets (string)
+  (declare (optimize (speed 3) (debug 0) (safety 0))
+	   (simple-string string))
+  (let* ((octets (make-array (utf8-octets-length string)  :element-type 'octet))
+	(len (length octets))
+	(i 0))
+    (declare (array-index i))
+    (macrolet ((add-octets (&rest octet-list &aux (n (length octet-list)))
+                 (declare (optimize (speed 0)))
+                 `(progn ,@(loop FOR i FROM 0 BELOW n 
+				 FOR o IN octet-list COLLECT
+                             `(setf (aref octets (+ i ,i)) ,o))
+			 (incf i ,n))))
       (loop FOR ch ACROSS string 
 	    FOR cd = (char-code ch) DO
-        (if (< cd #x10000)
-	    (loop FOR o ACROSS (the simple-octets (svref +UNICODE=>UTF8+ cd)) DO
-		  (setf (aref octets (incf i)) o))
-	  (setf (aref octets (incf i)) (+ #b11110000 (ldb (byte 3 18) cd))
-		(aref octets (incf i)) (+ #b10000000 (ldb (byte 6 12) cd))
-		(aref octets (incf i)) (+ #b10000000 (ldb (byte 6 6) cd))
-		(aref octets (incf i)) (+ #b10000000 (ldb (byte 6 0) cd)))))
-      octets)))
+        (cond ((<= cd #x80)
+	       (add-octets cd))
+	      ((<= cd #x800)
+	       (add-octets (+ #b11000000 (ldb (byte 5 6) cd))
+			   (+ #b10000000 (ldb (byte 6 0) cd))))
+	      ((<= cd #x10000)
+	       #+C (when (<= #xd800 cd #xdfff)
+		 (error ""))
+	       (assert (<= (+ i 3) len))
+	       (add-octets (+ #b11100000 (ldb (byte 4 12) cd))
+			   (+ #b10000000 (ldb (byte 6 6) cd))
+			   (+ #b10000000 (ldb (byte 6 0) cd))))
+	      (t
+	       (add-octets (+ #b11110000 (ldb (byte 3 18) cd))
+			   (+ #b10000000 (ldb (byte 6 12) cd))
+			   (+ #b10000000 (ldb (byte 6 6) cd))
+			   (+ #b10000000 (ldb (byte 6 0) cd)))))))
+    octets))

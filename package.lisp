@@ -18,4 +18,4 @@
 (deftype octet () '(unsigned-byte 8))
 (deftype simple-octets () '(simple-array octet))
 (deftype positive-fixnum () '(integer 1 #.most-positive-fixnum))
-(deftype array-index () '(integer 0 #.array-total-size-limit))
+(deftype array-index () '(integer 0 #.(1- array-total-size-limit)))
