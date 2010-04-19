@@ -57,6 +57,7 @@
 	   ((simple-array character) string))
   (macrolet ((with-validate (num exp)
                `(if (and (< (+ ,num pos) octets-len)
+			 ;; TOOD: 一番初めは0ではいけない -> check
 			 ,@(loop FOR i fixnum FROM 1 TO num 
 			     COLLECT `(10xxxxxx-p (aref os (+ ,i pos)))))
 		    (values ,exp 
