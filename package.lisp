@@ -20,3 +20,6 @@
 (deftype positive-fixnum () '(integer 1 #.most-positive-fixnum))
 (deftype array-index () '(integer 0 #.(1- array-total-size-limit)))
 (deftype simple-characters () '(simple-array character (*)))
+
+(deftype optimize-hack-array-index () #+SBCL '(integer 0 100) 
+                                      #-SBCL 'array-index)
