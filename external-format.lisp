@@ -7,7 +7,8 @@
 ;;;;;;;;;;;;;;;;;;;;
 ;;; special variable
 (defvar *external-formats*
-  (loop FOR path IN (remove-if-not #'pathname-name (directory "data/name/*"))
+  (loop FOR path IN (remove-if-not #'pathname-name 
+				   (directory (merge-pathnames "name/*" *data-dir*)))
     COLLECT
       (with-open-file (in path)
         (read in))))
@@ -16,7 +17,8 @@
 
 (defvar *external-format=>filename-map*
   (let ((map (make-hash-table :test #'eq)))
-    (loop FOR path IN (remove-if-not #'pathname-name (directory "data/name/*")) DO
+    (loop FOR path IN (remove-if-not #'pathname-name 
+				     (directory (merge-pathnames "name/*" *data-dir*))) DO
       (with-open-file (in path)
         (dolist (external-format (read in))
           (setf (gethash external-format map) (intern (pathname-name path) :keyword)))))

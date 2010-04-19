@@ -84,9 +84,9 @@
 			FOR cd = (char-code ch)
 			FOR octets = (and (< cd code-limit) (svref table cd))
 	            DO (when (null octets)
-			 (return -1))
+			 (return))
 		        (incf len (length (the simple-octets octets)))
 	            FINALLY (return len))))
-	(if (/= len -1)
+	(if len
 	    (legal-string-to-octets string len table)
 	  (illegal-string-to-octets string table replace-fn)))))))

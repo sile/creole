@@ -31,7 +31,7 @@
   (declare (optimize (speed 3) (debug 0) (safety 0))
 	   (simple-octets os)
 	   (fixnum pos j octets-len)
-	   ((simple-array character) string))
+	   (simple-characters string))
   (macrolet ((with-validate (num exp)
                `(if (and (< (+ ,num pos) octets-len)
 			 ;; TOOD: 一番初めは0ではいけない -> check
