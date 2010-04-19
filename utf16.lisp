@@ -32,25 +32,31 @@
   (symbol-macrolet ((p1 (if (eq endian :be) 8 0))
 		    (p2 (if (eq endian :be) 0 8)))
     `(let ((octets (make-array (* 4 (length ,string)) :element-type 'octet))
-	   (i -1))
-       (declare (fixnum i))
-       (loop FOR char ACROSS ,string
-	     FOR code = (char-code char) DO
-         (if (< code #x10000)
-	     (progn
-	       (loop WHILE (<= #xD800 code #xDFFF) DO
-	         (multiple-value-bind (new-char) (funcall ,replace-fn code)
-		   (check-type new-char character)
-		   (setf code (char-code new-char))))
-	       (setf (aref octets (incf i)) (ldb (byte 8 ,p1) code)
-		     (aref octets (incf i)) (ldb (byte 8 ,p2) code)))
+	   (i 0))
+       (declare (optimize-hack-array-index i))
+       (macrolet ((add-octets (&rest octet-list &aux (n (length octet-list)))
+			      (declare (optimize (speed 0)))
+			      `(progn ,@(loop FOR i FROM 0 BELOW n 
+					      FOR o IN octet-list COLLECT
+					      `(setf (aref octets (+ i ,i)) ,o))
+				      (incf i ,n))))
+         (loop FOR char ACROSS ,string
+	       FOR code = (char-code char) DO
+           (if (< code #x10000)
+	       (progn
+		 (loop WHILE (<= #xD800 code #xDFFF) DO
+		   (multiple-value-bind (new-char) (funcall ,replace-fn code)
+		     (check-type new-char character)
+		     (setf code (char-code new-char))))
+		 (add-octets (ldb (byte 8 ,p1) code)
+			     (ldb (byte 8 ,p2) code)))
 	   (let ((low  (low-surrogate code))
 		 (high (high-surrogate code)))
-	     (setf (aref octets (incf i)) (ldb (byte 8 ,p1) high)
-		   (aref octets (incf i)) (ldb (byte 8 ,p2) high)
-		   (aref octets (incf i)) (ldb (byte 8 ,p1) low)
-		   (aref octets (incf i)) (ldb (byte 8 ,p2) low)))))
-       (subseq octets 0 (1+ i)))))
+	     (add-octets (ldb (byte 8 ,p1) high)
+			 (ldb (byte 8 ,p2) high)
+			 (ldb (byte 8 ,p1) low)
+			 (ldb (byte 8 ,p2) low))))))
+       (subseq octets 0 i))))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; octets => string

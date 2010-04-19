@@ -89,24 +89,25 @@
 (defun utf8-octets-length (string)
   (declare (optimize (speed 3) (debug 0) (safety 0) (compilation-speed 0))
 	   (simple-string string))
-  (let ((len 0))
-    (declare (fixnum len))
-    (loop FOR ch ACROSS string 
-	  FOR cd = (char-code ch) DO
-      (incf len 
-	    (cond ((<= cd #x80) 1)
-		  ((<= cd #x800) 2)
-		  ((<= cd #x10000) 3)
-		  (t 4))))
-    len))
+  (loop WITH len OF-TYPE array-index = 0
+	FOR ch ACROSS string 
+	FOR cd = (char-code ch) 
+    DO
+    (incf len 
+	  (cond ((< cd #x80) 1)
+		((< cd #x800) 2)
+		((< cd #x10000) 3)
+		(t 4)))
+    FINALLY (return len)))
+
+(deftype optimize-hack-integer () '(integer 0 100))
 
 (defun utf8-string-to-octets (string)
   (declare (optimize (speed 3) (debug 0) (safety 0))
-	   (simple-string string))
-  (let* ((octets (make-array (utf8-octets-length string)  :element-type 'octet))
-	(len (length octets))
+	   (simple-characters string))
+  (let ((octets (make-array (utf8-octets-length string)  :element-type 'octet))
 	(i 0))
-    (declare (array-index i))
+    (declare (optimize-hack-array-index i))
     (macrolet ((add-octets (&rest octet-list &aux (n (length octet-list)))
                  (declare (optimize (speed 0)))
                  `(progn ,@(loop FOR i FROM 0 BELOW n 
@@ -115,15 +116,14 @@
 			 (incf i ,n))))
       (loop FOR ch ACROSS string 
 	    FOR cd = (char-code ch) DO
-        (cond ((<= cd #x80)
+        (cond ((< cd #x80)
 	       (add-octets cd))
-	      ((<= cd #x800)
+	      ((< cd #x800)
 	       (add-octets (+ #b11000000 (ldb (byte 5 6) cd))
 			   (+ #b10000000 (ldb (byte 6 0) cd))))
-	      ((<= cd #x10000)
-	       #+C (when (<= #xd800 cd #xdfff)
+	      ((< cd #x10000)
+	       (when (<= #xd800 cd #xdfff)
 		 (error ""))
-	       (assert (<= (+ i 3) len))
 	       (add-octets (+ #b11100000 (ldb (byte 4 12) cd))
 			   (+ #b10000000 (ldb (byte 6 6) cd))
 			   (+ #b10000000 (ldb (byte 6 0) cd))))

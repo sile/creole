@@ -16,10 +16,13 @@
      (function)
      (symbol (setf ,function-desginator (symbol-function ,function-desginator)))))
 
-(defmacro ensure-simple-string (string)
-  `(etypecase ,string
-     (simple-string)
-     (string (setf ,string (muffle-warn (coerce ,string 'simple-string))))))
+(defmacro ensure-simple-characters (s)
+  `(etypecase ,s
+     (simple-characters)
+     (simple-base-string (setf ,s (make-array (length ,s) 
+					      :element-type 'character 
+					      :initial-contents ,s)))
+     (string (setf ,s (muffle-warn (copy-seq ,s))))))
   
 (defmacro defconst-onceonly (name value &optional doc)
   `(defconstant ,name (if (boundp ',name) (symbol-value ',name) ,value)

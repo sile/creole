@@ -42,7 +42,7 @@
 
 (defun illegal-string-to-octets (string table replace-fn)
   (declare (optimize (speed 3) (debug 0) (safety 0))
-	   (simple-string string)
+	   (simple-characters string)
 	   (function replace-fn)
 	   (simple-vector table))
   (let ((buf (make-array (length string) :fill-pointer 0
@@ -69,23 +69,24 @@
   (declare (optimize (speed 3) (debug 1) (safety 0))
 	   (string string))
   (ensure-function replace-fn)
-  (ensure-simple-string string)
-  
-  (case (external-format-key external-format)
-    (:|utf-8| (utf8-string-to-octets string))
-    (:|utf-16be| (utf16-string-to-octets string :be replace-fn))
-    (:|utf-16le| (utf16-string-to-octets string :le replace-fn))
-    (t 
-     (let* ((table (get-encode-table external-format))
-	    (code-limit (length (the simple-vector table)))
-	    (len (loop WITH len OF-TYPE fixnum = 0
-		       FOR ch ACROSS string 
-		       FOR cd = (char-code ch)
-		       FOR octets = (and (< cd code-limit) (svref table cd))
-	           DO (when (null octets)
-			(return -1))
-		      (incf len (length (the simple-octets octets)))
-		   FINALLY (return len))))
-       (if (/= len -1)
-	   (legal-string-to-octets string len table)
-	 (illegal-string-to-octets string table replace-fn))))))
+  (ensure-simple-characters string)
+  (locally
+   (declare (simple-characters string))
+   (case (external-format-key external-format)
+     (:|utf-8| (utf8-string-to-octets string))
+     (:|utf-16be| (utf16-string-to-octets string :be replace-fn))
+     (:|utf-16le| (utf16-string-to-octets string :le replace-fn))
+     (t 
+      (let* ((table (get-encode-table external-format))
+	     (code-limit (length (the simple-vector table)))
+	     (len (loop WITH len OF-TYPE fixnum = 0
+			FOR ch ACROSS string 
+			FOR cd = (char-code ch)
+			FOR octets = (and (< cd code-limit) (svref table cd))
+	            DO (when (null octets)
+			 (return -1))
+		        (incf len (length (the simple-octets octets)))
+	            FINALLY (return len))))
+	(if (/= len -1)
+	    (legal-string-to-octets string len table)
+	  (illegal-string-to-octets string table replace-fn)))))))
