@@ -8,6 +8,7 @@
 
 ;;;;;;;;;;;;
 ;;; constant
+#-SBCL
 (defconst-onceonly +UNICODE=>UTF8+
   (let ((table (make-array #x10000)))
     (loop FOR code FROM #x0 BELOW #x100 DO
@@ -109,6 +110,9 @@
 (defun utf8-string-to-octets (string)
   (declare (optimize (speed 3) (debug 0) (safety 0) (compilation-speed 0))
 	   (simple-string string))
+  ;; TODO: 全部自作する
+  #+SBCL (sb-ext:string-to-octets string :external-format :utf-8)
+  #-SBCL
   (let ((len 0))
     (declare (fixnum len))
     
@@ -119,6 +123,7 @@
 	    ((< cd #x10000) (incf len 3))
 	    (t              (incf len 4))))
 
+    ;; TODO: if len = str-len
     (let ((octets (make-array len :element-type 'octet))
 	  (i -1))
       (declare (fixnum i))

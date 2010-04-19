@@ -73,8 +73,8 @@
   
   (case (external-format-key external-format)
     (:|utf-8| (utf8-string-to-octets string))
-    (:|utf-16be| (utf16-string-to-octets string :be))
-    (:|utf-16le| (utf16-string-to-octets string :le))
+    (:|utf-16be| (utf16-string-to-octets string :be replace-fn))
+    (:|utf-16le| (utf16-string-to-octets string :le replace-fn))
     (t 
      (let* ((table (get-encode-table external-format))
 	    (code-limit (length (the simple-vector table)))

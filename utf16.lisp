@@ -28,18 +28,22 @@
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; string => octets
-(defmacro utf16-string-to-octets (string endian)
+(defmacro utf16-string-to-octets (string endian replace-fn)
   (symbol-macrolet ((p1 (if (eq endian :be) 8 0))
 		    (p2 (if (eq endian :be) 0 8)))
-    `(let ((octets (make-array (* 4 (length ,string))
-			       :element-type 'octet))
+    `(let ((octets (make-array (* 4 (length ,string)) :element-type 'octet))
 	   (i -1))
        (declare (fixnum i))
-       (loop FOR char ACROSS string 
+       (loop FOR char ACROSS ,string
 	     FOR code = (char-code char) DO
          (if (< code #x10000)
-	     (setf (aref octets (incf i)) (ldb (byte 8 ,p1) code)
-		   (aref octets (incf i)) (ldb (byte 8 ,p2) code))
+	     (progn
+	       (loop WHILE (<= #xD800 code #xDFFF) DO
+	         (multiple-value-bind (new-char) (funcall ,replace-fn code)
+		   (check-type new-char character)
+		   (setf code (char-code new-char))))
+	       (setf (aref octets (incf i)) (ldb (byte 8 ,p1) code)
+		     (aref octets (incf i)) (ldb (byte 8 ,p2) code)))
 	   (let ((low  (low-surrogate code))
 		 (high (high-surrogate code)))
 	     (setf (aref octets (incf i)) (ldb (byte 8 ,p1) high)
