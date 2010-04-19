@@ -33,7 +33,7 @@
 		    (p2 (if (eq endian :be) 0 8)))
     `(let ((octets (make-array (* 4 (length ,string)) :element-type 'octet))
 	   (i 0))
-       (declare (optimize-hack-array-index i))
+       (declare (array-index i))
        (macrolet ((add-octets (&rest octet-list &aux (n (length octet-list)))
 			      (declare (optimize (speed 0)))
 			      `(progn ,@(loop FOR i FROM 0 BELOW n 

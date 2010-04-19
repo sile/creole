@@ -107,7 +107,7 @@
 	   (simple-characters string))
   (let ((octets (make-array (utf8-octets-length string)  :element-type 'octet))
 	(i 0))
-    (declare (optimize-hack-array-index i))
+    (declare (array-index i))
     (macrolet ((add-octets (&rest octet-list &aux (n (length octet-list)))
                  (declare (optimize (speed 0)))
                  `(progn ,@(loop FOR i FROM 0 BELOW n 
