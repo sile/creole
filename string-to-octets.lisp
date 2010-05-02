@@ -49,8 +49,7 @@
 ;;;;;;;;;;;;;;;;;;;;;
 ;;; external function
 (defun string-to-octets (string &key (external-format *default-external-format*))
-  (declare #.*fastest*
-	   (string string))
+  (declare #.*fastest*)
   (ensure-simple-characters string
    (case (external-format-key external-format)
      (:|utf-8| (utf8-string-to-octets string))

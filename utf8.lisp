@@ -3,7 +3,8 @@
 ;;;;;;;;;;;
 ;;; declaim
 (declaim (inline bit-off? bit-val 10xxxxxx-p 
-		 utf8-octets-length
+		 utf8-octets-length utf8-string-length
+		 utf8-octets-to-string-safe utf8-octets-to-string-unsafe
 		 utf8-octets-to-unicode utf8-octets-to-string))
 
 ;;;;;;;;;;;;;;;;;;;;;
@@ -17,38 +18,29 @@
 (defun 10xxxxxx-p (octet)
   (= (ldb (byte 2 6) octet) #b10))
 
-(defun utf8-call-replace-fn (replace-fn octets pos)
-  (declare (optimize (speed 3) (debug 0) (safety 0))
-	   (fixnum pos)
-	   (function replace-fn))
-  (multiple-value-bind (new-char #1=consuming-octets-count)
-		       (funcall replace-fn octets pos)
-    (check-type new-char character)
-    (check-type #1# (or null positive-fixnum))
-    (values (char-code new-char) 
-	    (the positive-fixnum (+ pos (the positive-fixnum (or #1# 1)))))))
-		
-(defun utf8-octets-to-unicode(octets pos string j replace-fn octets-len &aux (os octets))
+(defun utf8-octets-to-unicode(octets pos string j octets-len &aux (os octets))
   (declare #.*fastest*
 	   (simple-octets os)
 	   (fixnum pos j octets-len)
 	   (simple-characters string))
   (macrolet ((with-validate (num exp)
                `(if (and (< (+ ,num pos) octets-len)
-			 ;; TOOD: 一番初めは0ではいけない -> check
+			 ;; TODO: 一番初めは0ではいけない -> check
 			 ,@(loop FOR i fixnum FROM 1 TO num 
 			     COLLECT `(10xxxxxx-p (aref os (+ ,i pos)))))
 		    (values ,exp 
-			    (the positive-fixnum (+ ,(1+ num) pos)))
-		  (utf8-call-replace-fn replace-fn octets pos))))
-
+			    (the positive-fixnum (+ ,(1+ num) pos))
+			    t)
+		  (values +UNKNOWN-CODE+ 
+			  (the positive-fixnum (+ ,(1+ num) pos))
+			  nil))))
     (let ((octet (aref os pos)))
-      (multiple-value-bind (code new-pos)
+      (multiple-value-bind (code new-pos legal?)
 	        ;; #b0xxxxxxx
-          (cond ((bit-off? 7 octet) (values octet (1+ pos)))
+          (cond ((bit-off? 7 octet) (values octet (1+ pos) t))
 	       
 	        ;; #b10xxxxxx
-	        ((bit-off? 6 octet) (utf8-call-replace-fn replace-fn os pos)) 
+		((bit-off? 6 octet) (values +UNKNOWN-CODE+ (1+ pos) nil))
 	       
 	        ;; #b110xxxxx #b10xxxxxx
 	        ((bit-off? 5 octet) (with-validate 1
@@ -68,21 +60,70 @@
 					 (bit-val 6 (aref os (+ 2 pos)) 6)
 					 (bit-val 6 (aref os (+ 3 pos))))))
 	      
-		(t                  (utf8-call-replace-fn replace-fn os pos)))
+		(t                  (values +UNKNOWN-CODE+ (1+ pos) nil)))
 	  (setf (aref string j) (code-char code))
-	  (the fixnum new-pos)))))
+	  (values (the fixnum new-pos) legal?)))))
+
+(defun utf8-octets-to-string-safe (octets &aux (len (length octets)))
+  (let ((buf (make-array len :element-type 'character))
+	(including-illegal-octet? nil)
+	(legal? t))
+    (do ((i 0)
+	 (j 0 (1+ j)))
+	((>= i len) (values (subseq buf 0 j)
+			    (not including-illegal-octet?)))
+      (declare (optimize-hack-array-index j i))
+      (setf (values i legal?) (utf8-octets-to-unicode octets i buf j len))
+      (unless legal?
+	(setf including-illegal-octet? t)))))
+
+(defun utf8-string-length (octets octets-len)
+  (do ((i 0)
+       (len 0 (1+ len)))
+      ((= i octets-len) len)
+    (declare (optimize-hack-array-index i len))
+    (let ((octet (aref octets i)))
+      (cond ((bit-off? 7 octet) (incf i))
+	    ((bit-off? 5 octet) (incf i 2))
+	    ((bit-off? 4 octet) (incf i 3))
+	    ((bit-off? 3 octet) (incf i 4))))))
+      
+(defun utf8-octets-to-string-unsafe (octets &aux (len (length octets)))
+  (let ((buf (make-array len #+C(utf8-string-length octets len) :element-type 'character)))
+    (do ((i 0 (1+ i))
+	 (j 0))
+	((= j len) (values (subseq buf 0 i) t))
+      (declare (optimize-hack-array-index i j))
+      (flet ((add-char (code) (setf (aref buf i) (code-char code))))
+        (declare (inline add-char))
+	(let ((octet (aref octets j)))
+	  (cond ((bit-off? 7 octet) 
+		 (add-char octet)
+		 (incf j))
+		((bit-off? 5 octet)
+		 (add-char (+ (bit-val 5 octet 6)  
+			      (bit-val 6 (aref octets (+ 1 j)))))
+		 (incf j 2))
+		((bit-off? 4 octet)
+		 (add-char (+ (bit-val 4 octet 12)
+			      (bit-val 6 (aref octets (+ 1 j)) 6)
+			      (bit-val 6 (aref octets (+ 2 j)))))
+		 (incf j 3))
+		((bit-off? 3 octet)
+		 (add-char (+ (bit-val 3 octet 18)
+			      (bit-val 6 (aref octets (+ 1 j)) 12)
+			      (bit-val 6 (aref octets (+ 2 j)) 6)
+			      (bit-val 6 (aref octets (+ 3 j)))))
+		 (incf j 4))))))))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; octets => string
-(defun utf8-octets-to-string (octets replace-fn &aux (len (length octets)))
+(defun utf8-octets-to-string (octets safe)
   (declare #.*fastest*
 	   (simple-octets octets))
-  (let ((buf (make-array len :element-type 'character))
-	(j -1))
-    (declare (fixnum j))
-    (do ((i 0 (utf8-octets-to-unicode octets i buf (incf j) replace-fn len)))
-	((>= i len) (subseq buf 0 (1+ j)))
-      (declare (fixnum i)))))
+  (if safe
+      (utf8-octets-to-string-safe octets)
+    (utf8-octets-to-string-unsafe octets)))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; string => octets

@@ -63,76 +63,35 @@
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; octets => string
-(defun utf16be-octets-to-string (octets replace-fn &aux (octets-len (length octets)))
-  (declare (optimize (speed 3) (debug 0) (safety 0) (compilation-speed 0))
-	   (simple-octets octets)
-	   (function replace-fn))
-  (let ((buf (make-array octets-len :element-type 'character))
-	(pos -1)
-	(limit (if (evenp octets-len) octets-len (1- octets-len))))
-    (declare (fixnum pos))
-    
-    (macrolet ((with-replace ((new-char) &body body)
-                 `(multiple-value-bind (,new-char #1=consuming-octets-count)
-				      (funcall replace-fn octets (- i 2))
-                   (check-type ,new-char character)
-		   (check-type #1# (or null positive-fixnum))
-		   (setf surrogate nil
-			 i (+ (- i 2) (the positive-fixnum (or #1# 1))))
-		   ,@body)))
-		   
-      (loop WITH surrogate = nil
-	    FOR i fixnum FROM 0 BELOW limit BY 2
-	    FOR code = (to-utf16be-code octets i)
-        DO
-	(cond ((<= #xDC00 code #xDFFF)
-	       (if (null surrogate)
-		   (with-replace (new-char)
-		     (setf (aref buf (incf pos)) new-char))
-		 (setf (aref buf (incf pos)) (decode-surrogate-pair surrogate code)
-		       surrogate nil)))
-	      (surrogate 
-	       (with-replace (new-char)
-	         (setf (aref buf (incf pos)) new-char)))
-	      ((<= #xD800 code #xDBFF) 
-	       (setf surrogate code))
-	      (t 
-	       (setf (aref buf (incf pos)) (code-char code)))))
-      (subseq buf 0 (1+ pos)))))
-
-(defun utf16le-octets-to-string (octets replace-fn &aux (octets-len (length octets)))
-  (declare (optimize (speed 3) (debug 0) (safety 0) (compilation-speed 0))
-	   (simple-octets octets)
-	   (function replace-fn))
-  (let ((buf (make-array octets-len :element-type 'character))
-	(pos -1)
-	(limit (if (evenp octets-len) octets-len (1- octets-len))))
-    (declare (fixnum pos))
-    
-    (macrolet ((with-replace ((new-char) &body body)
-                 `(multiple-value-bind (,new-char #1=consuming-octets-count)
-				      (funcall replace-fn octets (- i 2))
-                   (check-type ,new-char character)
-		   (check-type #1# (or null positive-fixnum))
-		   (setf surrogate nil
-			 i (+ (- i 2) (the positive-fixnum (or #1# 1))))
-		   ,@body)))
-		   
-      (loop WITH surrogate = nil
-	    FOR i fixnum FROM 0 BELOW limit BY 2
-	    FOR code = (to-utf16le-code octets i)
-        DO
-	(cond ((<= #xDC00 code #xDFFF)
-	       (if (null surrogate)
-		   (with-replace (new-char)
-		     (setf (aref buf (incf pos)) new-char))
-		 (setf (aref buf (incf pos)) (decode-surrogate-pair surrogate code)
-		       surrogate nil)))
-	      (surrogate 
-	       (with-replace (new-char)
-	         (setf (aref buf (incf pos)) new-char)))
-	      ((<= #xD800 code #xDBFF) 
-	       (setf surrogate code))
-	      (t 
-	       (setf (aref buf (incf pos)) (code-char code)))))
-      (subseq buf 0 (1+ pos)))))
+(defmacro utf16-octets-to-string (octets endian)
+  `(let* ((octets-len (length ,octets))
+	  (buf-len (ceiling octets-len 2))
+	  (buf (make-array buf-len :element-type 'character))
+	  (pos -1)
+	  (including-illegal-octet? nil))
+     (declare (fixnum pos))
+     (flet ((add-char (char) (setf (aref buf (incf pos)) char))
+	    (add-unk-char () (setf (aref buf (incf pos)) +UNKNOWN-CHAR+
+				   including-illegal-octet? t)))
+       (declare (inline add-char add-unk-char))
+       (loop WITH surrogate = nil
+	     FOR i FROM 0 BELOW (1- octets-len) BY 2
+	     FOR code = (,(if (eq endian :le) 'to-utf16le-code 'to-utf16be-code) ,octets i)
+         DO
+	 (cond ((<= #xDC00 code #xDFFF)
+		(if (null surrogate)
+		    (add-unk-char)
+		  (progn 
+		    (add-char (decode-surrogate-pair surrogate code))
+		    (setf surrogate nil))))
+	       (surrogate 
+		(add-unk-char)
+		(setf surrogate nil))
+	       ((<= #xD800 code #xDBFF) 
+		(setf surrogate code))
+	       (t 
+		(add-char (code-char code)))))
+       (when (oddp octets-len)
+	 (add-unk-char)))
+     (values (if (= (1+ pos) buf-len) buf (subseq buf 0 (1+ pos)))
+	     (not including-illegal-octet?))))
