@@ -3,7 +3,7 @@
 ;;;;;;;;;;;
 ;;; declaim
 (declaim (inline low-surrogate high-surrogate 
-		 decode-surrogate-pair to-utf16le-code to-utf16be-code))
+		 to-utf16le-code to-utf16be-code))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;;; auxiliary function
@@ -21,10 +21,11 @@
   (+ (ash (aref octets (+ start 0)) 0)
      (ash (aref octets (+ start 1)) 8)))
 
-(defun decode-surrogate-pair (high low)
-  (code-char (+ #x10000
-		(ash (ldb (byte 10 0) high) 10)
-		(ash (ldb (byte 10 0) low)  00))))
+;; see: http://d.hatena.ne.jp/sile/20100502/1272815686
+(defmacro decode-surrogate-pair (high low)
+  `(code-char (+ #x10000
+		 (ash (ldb (byte 10 0) ,high) 10)
+		 (ash (ldb (byte 10 0) ,low)  00))))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; string => octets
@@ -35,23 +36,25 @@
                               (when (>= cd #x10000)
 				(return t))))
 	    (buf-len (* (if has-surrogate? 4 2) (length ,string)))
+	    (legal-octets? t)
 	    (octets (make-array buf-len :element-type 'octet))
 	    (i 0))
        (declare (optimize-hack-array-index i))
        (macrolet ((add-octets (&rest octet-list &aux (n (length octet-list)))
-			      (declare (optimize (speed 0)))
-			      `(progn ,@(loop FOR i FROM 0 BELOW n 
-					      FOR o IN octet-list COLLECT
-					      `(setf (aref octets (+ i ,i)) ,o))
-				      (incf i ,n))))
+                    (declare (optimize (speed 0)))
+		    `(progn ,@(loop FOR i FROM 0 BELOW n 
+				    FOR o IN octet-list COLLECT
+				    `(setf (aref octets (+ i ,i)) ,o))
+			    (incf i ,n))))
          (if (not has-surrogate?)
-	     (each-char-code (cd ,string octets)
-	       #1=(if (<= #xD800 cd #xDFFF)
-		      (add-octets (ldb (byte 8 ,p1) +UNKNOWN-CODE+)
-				  (ldb (byte 8 ,p2) +UNKNOWN-CODE+))
+	     (each-char-code (cd ,string (values octets legal-octets?))
+	       #1=(progn
+		    (when (<= #xD800 cd #xDFFF)
+		      (setf cd +UNKNOWN-CODE+
+			    legal-octets? nil))
 		    (add-octets (ldb (byte 8 ,p1) cd)
 				(ldb (byte 8 ,p2) cd))))
-	   (each-char-code (cd ,string (subseq octets 0 i))
+	   (each-char-code (cd ,string (values (subseq octets 0 i) legal-octets?))
 	     (if (< cd #x10000)
 		 #1#
 	       (let ((low  (low-surrogate  cd))
@@ -60,7 +63,6 @@
 			     (ldb (byte 8 ,p2) high)
 			     (ldb (byte 8 ,p1) low)
 			     (ldb (byte 8 ,p2) low))))))))))
-
 ;;;;;;;;;;;;;;;;;;;;
 ;;; octets => string
 (defmacro utf16-octets-to-string (octets endian)
@@ -68,11 +70,11 @@
 	  (buf-len (ceiling octets-len 2))
 	  (buf (make-array buf-len :element-type 'character))
 	  (pos -1)
-	  (including-illegal-octet? nil))
+	  (legal-octets? t))
      (declare (fixnum pos))
      (flet ((add-char (char) (setf (aref buf (incf pos)) char))
 	    (add-unk-char () (setf (aref buf (incf pos)) +UNKNOWN-CHAR+
-				   including-illegal-octet? t)))
+				   legal-octets? nil)))
        (declare (inline add-char add-unk-char))
        (loop WITH surrogate = nil
 	     FOR i FROM 0 BELOW (1- octets-len) BY 2
@@ -94,4 +96,4 @@
        (when (oddp octets-len)
 	 (add-unk-char)))
      (values (if (= (1+ pos) buf-len) buf (subseq buf 0 (1+ pos)))
-	     (not including-illegal-octet?))))
+	     legal-octets?)))

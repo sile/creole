@@ -1,19 +1,15 @@
 (in-package :creole)
 
-;;;;;;;;;;;
-;;; declaim
 (declaim (inline external-format-filename external-format-key))
 
-;;;;;;;;;;;;;;;;;;;;
-;;; special variable
+
+(defvar *default-external-format* :utf-8)
 (defvar *external-formats*
   (loop FOR path IN (remove-if-not #'pathname-name 
 				   (directory (merge-pathnames "name/*" *data-dir*)))
     COLLECT
       (with-open-file (in path)
         (read in))))
-
-(defvar *default-external-format* :utf-8)
 
 (defvar *external-format=>filename-map*
   (let ((map (make-hash-table :test #'eq)))
@@ -24,8 +20,7 @@
           (setf (gethash external-format map) (intern (pathname-name path) :keyword)))))
     map))
 
-;;;;;;;;;;;;;;;;;;;;;
-;;; internal function
+
 (defun external-format-filename (external-format)
   (assert #1=(gethash external-format *external-format=>filename-map*)
 	  (external-format) "Undefined external-format ~S" external-format)

@@ -20,8 +20,6 @@
 		(merge-pathnames #P"decode/" *data-dir*))))))
 
 (defun general-octets-to-string (octets trie)
-  (declare #.*fastest*
-	   (simple-octets octets))
   (let* ((len (length octets))
 	 (buf (make-array len :element-type 'character))
 	 (tail-pos -1)
@@ -39,11 +37,11 @@
 ;;; external function
 (defun octets-to-string (octets &key (external-format *default-external-format*))
   (declare #.*interface*)
-  (check-type octets simple-octets)
+  #-SBCL (check-type octets simple-octets)
   (locally
-   (declare (simple-octets octets))
+   (declare #.*fastest*)
    (case (external-format-key external-format)
-	 (:|utf-8| (utf8-octets-to-string octets))
-	 (:|utf-16be| (utf16-octets-to-string octets :be))
-	 (:|utf-16le| (utf16-octets-to-string octets :le))
-	 (t (general-octets-to-string octets (get-decode-trie external-format))))))
+     (:|utf-8| (utf8-octets-to-string octets))
+     (:|utf-16be| (utf16-octets-to-string octets :be))
+     (:|utf-16le| (utf16-octets-to-string octets :le))
+     (t (general-octets-to-string octets (get-decode-trie external-format))))))

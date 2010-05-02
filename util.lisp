@@ -11,12 +11,6 @@
     #+SBCL (declare (sb-ext:muffle-conditions sb-ext:compiler-note))
     ,@body))
 
-;; TODO: なくす
-(defmacro ensure-function (function-desginator)
-  `(etypecase ,function-desginator
-     (function)
-     (symbol (setf ,function-desginator (symbol-function ,function-desginator)))))
-
 (defmacro each-char-code ((code string &optional return) &body body)
   (let ((char (gensym)))
     `(loop FOR ,char ACROSS ,string

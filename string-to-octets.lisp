@@ -50,22 +50,24 @@
 ;;; external function
 (defun string-to-octets (string &key (external-format *default-external-format*))
   (declare #.*interface*)
-  (ensure-simple-characters string
-   (case (external-format-key external-format)
-     (:|utf-8| (utf8-string-to-octets string))
-     (:|utf-16be| (utf16-string-to-octets string :be))
-     (:|utf-16le| (utf16-string-to-octets string :le))
-     (t 
-      (let* ((table (get-encode-table external-format))
-	     (code-limit (length table))
-	     (including-illegal-character? nil)
-	     (len 0))
-	(declare (fixnum len))
-	(each-char-code (code string)
-	  (let ((octets (and (or (< code code-limit) (svref table code))
-			     (progn (setf including-illegal-character? t)
-				    +UNKNOWN-OCTETS+))))
-	    (incf len (length (the simple-octets octets)))))
-	(if including-illegal-character?
-	    (illegal-string-to-octets string len table)
-	  (legal-string-to-octets string len table)))))))
+  (locally 
+   (declare #.*fastest*)
+   (ensure-simple-characters string
+     (case (external-format-key external-format)
+       (:|utf-8| (utf8-string-to-octets string))
+       (:|utf-16be| (utf16-string-to-octets string :be))
+       (:|utf-16le| (utf16-string-to-octets string :le))
+       (t 
+	(let* ((table (get-encode-table external-format))
+	       (code-limit (length table))
+	       (including-illegal-character? nil)
+	       (len 0))
+	  (declare (fixnum len))
+	  (each-char-code (code string)
+	    (let ((octets (and (or (< code code-limit) (svref table code))
+			       (progn (setf including-illegal-character? t)
+				      +UNKNOWN-OCTETS+))))
+	      (incf len (length (the simple-octets octets)))))
+	  (if including-illegal-character?
+	      (illegal-string-to-octets string len table)
+	    (legal-string-to-octets string len table))))))))

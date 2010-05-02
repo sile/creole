@@ -3,11 +3,11 @@
 ;;;;;;;;;;;
 ;;; declaim
 (declaim (inline bit-off? bit-val 10xxxxxx-p 
-		 utf8-octets-length
-		 utf8-octets-to-unicode utf8-octets-to-string utf8-string-to-octets))
+		 utf8-octets-length utf8-octets-to-unicode 
+		 utf8-octets-to-string utf8-string-to-octets))
 
-;;;;;;;;;;;;;;;;;;;;;
-;;; internal function
+;;;;;;;;;;;;;;;;;;;;;;
+;;; auxiliary function
 (defun bit-off? (pos octet)
   (not (ldb-test (byte 1 pos) octet)))
 
@@ -17,21 +17,20 @@
 (defun 10xxxxxx-p (octet)
   (= (ldb (byte 2 6) octet) #b10))
 
+;;;;;;;;;;;;;;;;;;;;
+;;; octets => string
 (defun utf8-octets-to-unicode(octets pos string j octets-len &aux (os octets))
-  (declare #.*fastest*
-	   (simple-octets os)
-	   (optimize-hack-array-index pos j octets-len)
-	   (simple-characters string))
   (macrolet ((with-validate (num exp)
-               `(if (and (< (+ ,num pos) octets-len)
-			 (/= (bit-val ,(- 6 num) octet) 0)
-			 ,@(loop FOR i fixnum FROM 1 TO num 
+               (declare (optimize (speed 0)))
+               `(if (and (< (+ ,num pos) octets-len)        ; out of bounds
+			 (/= (bit-val ,(- 6 num) octet) 0)  ; redundant expression
+			 ,@(loop FOR i fixnum FROM 1 TO num ; octet since the second
 			     COLLECT `(10xxxxxx-p (aref os (+ ,i pos)))))
 		    (values ,exp 
-			    (the positive-fixnum (+ ,(1+ num) pos))
+			    (the fixnum (+ ,(1+ num) pos))
 			    t)
 		  (values +UNKNOWN-CODE+ 
-			  (the positive-fixnum (+ ,(1+ num) pos))
+			  (the fixnum (+ ,(1+ num) pos))
 			  nil))))
     (let ((octet (aref os pos)))
       (multiple-value-bind (code new-pos legal?)
@@ -58,27 +57,22 @@
 					 (bit-val 6 (aref os (+ 1 pos)) 12)
 					 (bit-val 6 (aref os (+ 2 pos)) 6)
 					 (bit-val 6 (aref os (+ 3 pos))))))
-	      
+
 		(t                  (values +UNKNOWN-CODE+ (1+ pos) nil)))
 	  (setf (aref string j) (code-char code))
 	  (values new-pos legal?)))))
 
-;;;;;;;;;;;;;;;;;;;;
-;;; octets => string
 (defun utf8-octets-to-string (octets &aux (len (length octets)))
-  (declare #.*fastest*
-	   (simple-octets octets))
   (let ((buf (make-array len :element-type 'character))
-	(including-illegal-octet? nil)
+	(legal-octets? t)
 	(legal? t))
     (do ((i 0)
 	 (j 0 (1+ j)))
-	((>= i len) (values (subseq buf 0 j)
-			    (not including-illegal-octet?)))
+	((>= i len) (values (subseq buf 0 j) legal-octets?))
       (declare (optimize-hack-array-index j i))
       (setf (values i legal?) (utf8-octets-to-unicode octets i buf j len))
       (unless legal?
-	(setf including-illegal-octet? t)))))
+	(setf legal-octets? nil)))))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; string => octets
@@ -91,8 +85,6 @@
 		(t              4)))))
 
 (defun utf8-string-to-octets (string)
-  (declare #.*fastest*
-	   (simple-characters string))
   (let ((octets (make-array (utf8-octets-length string)  :element-type 'octet))
 	(i 0))
     (declare (optimize-hack-array-index i))

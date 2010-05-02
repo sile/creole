@@ -6,6 +6,7 @@
   (base #() :type (simple-array (or character fixnum)) :read-only t)
   (chck #() :type (simple-array (signed-byte 16))      :read-only t))
 
+
 (defun load-trie (path)
   (with-open-file (in path :element-type 'octet)
     (let ((size (/ (file-length in) 6)))
@@ -19,11 +20,6 @@
   (+ node code))
 
 (defun to-unicode (octets start trie)
-  (declare #.*fastest*
-	   (simple-octets octets)
-	   (array-index start)
-	   (trie trie))
-
   (when (< (aref octets start) #x80)
     (return-from to-unicode (values (code-char (aref octets start)) (1+ start))))
 
