@@ -2,7 +2,7 @@
 
 ;;;;;;;;;;;
 ;;; declaim
-(declaim (inline get-encode-table #+C string-to-octets legal-string-to-octets illegal-string-to-octets)
+(declaim (inline get-encode-table legal-string-to-octets illegal-string-to-octets)
 	 (ftype (function (string &key (:external-format t)) (values simple-octets boolean)) string-to-octets)
 	 (ftype (function (t) simple-vector) get-encode-table))
 
@@ -41,15 +41,15 @@
 	(code-limit (length table))
 	(i -1))
     (each-char-code (code string (values buf nil))
-      (loop FOR o ACROSS (the simple-octets
-			      (or (and (< code code-limit) (svref table code))
-				  +UNKNOWN-OCTETS+)) DO
-        (setf (aref buf (incf (the fixnum i))) o)))))
+      (let ((octets (or (and (< code code-limit) (svref table code))
+			+UNKNOWN-OCTETS+)))
+	(loop FOR o ACROSS (the simple-octets octets) DO
+	  (setf (aref buf (incf (the fixnum i))) o))))))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;;; external function
 (defun string-to-octets (string &key (external-format *default-external-format*))
-  (declare #.*fastest*)
+  (declare #.*interface*)
   (ensure-simple-characters string
    (case (external-format-key external-format)
      (:|utf-8| (utf8-string-to-octets string))
@@ -62,10 +62,9 @@
 	     (len 0))
 	(declare (fixnum len))
 	(each-char-code (code string)
-	  (let ((octets (and (< code code-limit) (svref table code))))
-	    (when (null octets)
-	      (setf octets +UNKNOWN-OCTETS+
-		    including-illegal-character? t))
+	  (let ((octets (and (or (< code code-limit) (svref table code))
+			     (progn (setf including-illegal-character? t)
+				    +UNKNOWN-OCTETS+))))
 	    (incf len (length (the simple-octets octets)))))
 	(if including-illegal-character?
 	    (illegal-string-to-octets string len table)

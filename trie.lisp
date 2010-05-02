@@ -19,9 +19,9 @@
   (+ node code))
 
 (defun to-unicode (octets start trie)
-  (declare (optimize (speed 3) (debug 0) (safety 0))
+  (declare #.*fastest*
 	   (simple-octets octets)
-	   (fixnum start)
+	   (array-index start)
 	   (trie trie))
 
   (when (< (aref octets start) #x80)

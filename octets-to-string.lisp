@@ -2,7 +2,8 @@
 
 ;;;;;;;;;;;
 ;;; declaim
-(declaim (inline get-decode-trie general-octets-to-string))
+(declaim (inline get-decode-trie general-octets-to-string)
+	 (ftype (function (simple-octets &key (:external-format t)) (values simple-characters boolean)) octets-to-string))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; special variable
@@ -36,13 +37,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;;; external function
-(defun octets-to-string (octets &key (external-format *default-external-format*) (safe t))
-  (declare #.*fastest*)
+(defun octets-to-string (octets &key (external-format *default-external-format*))
+  (declare #.*interface*)
   (check-type octets simple-octets)
   (locally
    (declare (simple-octets octets))
    (case (external-format-key external-format)
-	 (:|utf-8| (utf8-octets-to-string octets safe))
+	 (:|utf-8| (utf8-octets-to-string octets))
 	 (:|utf-16be| (utf16-octets-to-string octets :be))
 	 (:|utf-16le| (utf16-octets-to-string octets :le))
 	 (t (general-octets-to-string octets (get-decode-trie external-format))))))

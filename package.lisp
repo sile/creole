@@ -21,4 +21,5 @@
                                       #-SBCL 'array-index)
 
 (defvar *fastest* '(optimize (speed 3) (debug 0) (safety 0) (compilation-speed 0)))
+(defvar *interface* '(optimize (speed 3) (debug 1) (safety 0) (compilation-speed 0)))
 
