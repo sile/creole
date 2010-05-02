@@ -11,18 +11,28 @@
     #+SBCL (declare (sb-ext:muffle-conditions sb-ext:compiler-note))
     ,@body))
 
+;; TODO: なくす
 (defmacro ensure-function (function-desginator)
   `(etypecase ,function-desginator
      (function)
      (symbol (setf ,function-desginator (symbol-function ,function-desginator)))))
 
-(defmacro ensure-simple-characters (s)
-  `(etypecase ,s
-     (simple-characters)
-     (simple-base-string (setf ,s (make-array (length ,s) 
-					      :element-type 'character 
-					      :initial-contents ,s)))
-     (string (setf ,s (muffle-warn (copy-seq ,s))))))
+(defmacro each-char-code ((code string &optional return) &body body)
+  (let ((char (gensym)))
+    `(loop FOR ,char ACROSS ,string
+	   FOR ,code = (char-code ,char) 
+       DO ,@body
+       FINALLY (return ,return))))
+
+(defmacro ensure-simple-characters (s &body body)
+  `(let ((,s (etypecase ,s
+               (simple-base-string (make-array (length ,s) 
+					       :element-type 'character 
+					       :initial-contents ,s))
+	       (simple-characters ,s)
+	       (string (muffle-warn (copy-seq ,s))))))
+     (declare (simple-characters ,s))
+     ,@body))
   
 (defmacro defconst-onceonly (name value &optional doc)
   `(defconstant ,name (if (boundp ',name) (symbol-value ',name) ,value)

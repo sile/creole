@@ -9,6 +9,7 @@
   :serial t
   :components ((:file "package")
 	       (:file "util")
+	       (:file "constant")
 	       (:file "trie")
 	       (:file "external-format")
 	       (:file "utf16")

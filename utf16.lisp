@@ -28,11 +28,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; string => octets
-(defmacro utf16-string-to-octets (string endian replace-fn)
+(defmacro utf16-string-to-octets (string endian)
   (symbol-macrolet ((p1 (if (eq endian :be) 8 0))
 		    (p2 (if (eq endian :be) 0 8)))
-    `(let ((octets (make-array (* 4 (length ,string)) :element-type 'octet))
-	   (i 0))
+    `(let* ((has-surrogate? (each-char-code (cd ,string nil)
+                              (when (>= cd #x10000)
+				(return t))))
+	    (buf-len (* (if has-surrogate? 4 2) (length ,string)))
+	    (octets (make-array buf-len :element-type 'octet))
+	    (i 0))
        (declare (optimize-hack-array-index i))
        (macrolet ((add-octets (&rest octet-list &aux (n (length octet-list)))
 			      (declare (optimize (speed 0)))
@@ -40,23 +44,22 @@
 					      FOR o IN octet-list COLLECT
 					      `(setf (aref octets (+ i ,i)) ,o))
 				      (incf i ,n))))
-         (loop FOR char ACROSS ,string
-	       FOR code = (char-code char) DO
-           (if (< code #x10000)
-	       (progn
-		 (loop WHILE (<= #xD800 code #xDFFF) DO
-		   (multiple-value-bind (new-char) (funcall ,replace-fn code)
-		     (check-type new-char character)
-		     (setf code (char-code new-char))))
-		 (add-octets (ldb (byte 8 ,p1) code)
-			     (ldb (byte 8 ,p2) code)))
-	   (let ((low  (low-surrogate code))
-		 (high (high-surrogate code)))
-	     (add-octets (ldb (byte 8 ,p1) high)
-			 (ldb (byte 8 ,p2) high)
-			 (ldb (byte 8 ,p1) low)
-			 (ldb (byte 8 ,p2) low))))))
-       (subseq octets 0 i))))
+         (if (not has-surrogate?)
+	     (each-char-code (cd ,string octets)
+	       #1=(if (<= #xD800 cd #xDFFF)
+		      (add-octets (ldb (byte 8 ,p1) +UNKNOWN-CODE+)
+				  (ldb (byte 8 ,p2) +UNKNOWN-CODE+))
+		    (add-octets (ldb (byte 8 ,p1) cd)
+				(ldb (byte 8 ,p2) cd))))
+	   (each-char-code (cd ,string (subseq octets 0 i))
+	     (if (< cd #x10000)
+		 #1#
+	       (let ((low  (low-surrogate  cd))
+		     (high (high-surrogate cd)))
+		 (add-octets (ldb (byte 8 ,p1) high)
+			     (ldb (byte 8 ,p2) high)
+			     (ldb (byte 8 ,p1) low)
+			     (ldb (byte 8 ,p2) low))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; octets => string

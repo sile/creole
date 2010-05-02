@@ -3,6 +3,7 @@
 ;;;;;;;;;;;
 ;;; declaim
 (declaim (inline bit-off? bit-val 10xxxxxx-p 
+		 utf8-octets-length
 		 utf8-octets-to-unicode utf8-octets-to-string))
 
 ;;;;;;;;;;;;;;;;;;;;;
@@ -28,7 +29,7 @@
 	    (the positive-fixnum (+ pos (the positive-fixnum (or #1# 1)))))))
 		
 (defun utf8-octets-to-unicode(octets pos string j replace-fn octets-len &aux (os octets))
-  (declare (optimize (speed 3) (debug 0) (safety 0))
+  (declare #.*fastest*
 	   (simple-octets os)
 	   (fixnum pos j octets-len)
 	   (simple-characters string))
@@ -74,7 +75,7 @@
 ;;;;;;;;;;;;;;;;;;;;
 ;;; octets => string
 (defun utf8-octets-to-string (octets replace-fn &aux (len (length octets)))
-  (declare (optimize (speed 3) (debug 0) (safety 0))
+  (declare #.*fastest*
 	   (simple-octets octets))
   (let ((buf (make-array len :element-type 'character))
 	(j -1))
@@ -85,25 +86,16 @@
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; string => octets
-(declaim (inline utf8-octets-length))
-(defun utf8-octets-length (string)
-  (declare (optimize (speed 3) (debug 0) (safety 0) (compilation-speed 0))
-	   (simple-string string))
-  (loop WITH len OF-TYPE array-index = 0
-	FOR ch ACROSS string 
-	FOR cd = (char-code ch) 
-    DO
-    (incf len 
-	  (cond ((< cd #x80) 1)
-		((< cd #x800) 2)
+(defun utf8-octets-length (string &aux (len 0))
+  (each-char-code (cd string len)
+    (incf (the array-index len)
+	  (cond ((< cd #x80)    1)
+		((< cd #x800)   2)
 		((< cd #x10000) 3)
-		(t 4)))
-    FINALLY (return len)))
-
-(deftype optimize-hack-integer () '(integer 0 100))
+		(t              4)))))
 
 (defun utf8-string-to-octets (string)
-  (declare (optimize (speed 3) (debug 0) (safety 0))
+  (declare #.*fastest*
 	   (simple-characters string))
   (let ((octets (make-array (utf8-octets-length string)  :element-type 'octet))
 	(i 0))
@@ -114,22 +106,23 @@
 				 FOR o IN octet-list COLLECT
                              `(setf (aref octets (+ i ,i)) ,o))
 			 (incf i ,n))))
-      (loop FOR ch ACROSS string 
-	    FOR cd = (char-code ch) DO
+      (each-char-code (cd string)
         (cond ((< cd #x80)
 	       (add-octets cd))
 	      ((< cd #x800)
 	       (add-octets (+ #b11000000 (ldb (byte 5 6) cd))
 			   (+ #b10000000 (ldb (byte 6 0) cd))))
 	      ((< cd #x10000)
-	       (when (<= #xd800 cd #xdfff)
-		 (error ""))
-	       (add-octets (+ #b11100000 (ldb (byte 4 12) cd))
-			   (+ #b10000000 (ldb (byte 6 6) cd))
-			   (+ #b10000000 (ldb (byte 6 0) cd))))
+	       (if (<= #xD800 cd #xDFFF)
+		   (add-octets +UNKNOWN-CODE+)
+		 (add-octets (+ #b11100000 (ldb (byte 4 12) cd))
+			     (+ #b10000000 (ldb (byte 6 6) cd))
+			     (+ #b10000000 (ldb (byte 6 0) cd)))))
 	      (t
 	       (add-octets (+ #b11110000 (ldb (byte 3 18) cd))
 			   (+ #b10000000 (ldb (byte 6 12) cd))
 			   (+ #b10000000 (ldb (byte 6 6) cd))
 			   (+ #b10000000 (ldb (byte 6 0) cd)))))))
-    octets))
+    (if (= i (length octets))
+	(values octets t)
+      (values (subseq octets i) nil))))

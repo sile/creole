@@ -2,8 +2,9 @@
 
 ;;;;;;;;;;;
 ;;; declaim
-(declaim (inline get-encode-table string-to-octets legal-string-to-octets)
-	 (ftype (function (string &key (:external-format t) (:replace-fn t)) simple-octets) string-to-octets))
+(declaim (inline get-encode-table #+C string-to-octets legal-string-to-octets illegal-string-to-octets)
+	 (ftype (function (string &key (:external-format t)) (values simple-octets boolean)) string-to-octets)
+	 (ftype (function (t) simple-vector) get-encode-table))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; special variable
@@ -28,65 +29,45 @@
       it
     (setf #1# (load-encode-table external-format))))
 
-(defun illegal-character-error (char-code)
-  (error "Unable to encode character ~D." char-code))
-
 (defun legal-string-to-octets (string octets-length table)
-  (let ((buf (make-array octets-length :element-type 'octet)))
-    (loop WITH i OF-TYPE fixnum = -1
-	  FOR ch ACROSS string 
-	  FOR octets = (svref table (char-code ch)) DO
-      (loop FOR o ACROSS (the simple-octets octets) DO
-        (setf (aref buf (incf i)) o)))
-    buf))
+  (let ((buf (make-array octets-length :element-type 'octet))
+	(i -1))
+    (each-char-code (code string (values buf t))
+      (loop FOR o ACROSS (the simple-octets (svref table code)) DO
+        (setf (aref buf (incf (the fixnum i))) o)))))
 
-(defun illegal-string-to-octets (string table replace-fn)
-  (declare (optimize (speed 3) (debug 0) (safety 0))
-	   (simple-characters string)
-	   (function replace-fn)
-	   (simple-vector table))
-  (let ((buf (make-array (length string) :fill-pointer 0
-					 :adjustable t
-					 :element-type 'octet))
-	(code-limit (length table)))
-    (loop FOR i OF-TYPE fixnum FROM 0 BELOW (length string)
-	  FOR ch = (char string i)
-	  FOR cd = (char-code ch)
-	  FOR octets = (and (< cd code-limit) (svref table cd)) DO
-      (when (null octets)
-	(let ((new-octets (funcall replace-fn cd)))
-	  (check-type new-octets simple-octets)
-	  (setf octets new-octets)))
-
-      (loop FOR o ACROSS (the simple-octets octets) DO
-        (vector-push-extend o buf)))
-    (coerce buf '(vector octet))))
+(defun illegal-string-to-octets (string octets-length table)
+  (let ((buf (make-array octets-length :element-type 'octet))
+	(code-limit (length table))
+	(i -1))
+    (each-char-code (code string (values buf nil))
+      (loop FOR o ACROSS (the simple-octets
+			      (or (and (< code code-limit) (svref table code))
+				  +UNKNOWN-OCTETS+)) DO
+        (setf (aref buf (incf (the fixnum i))) o)))))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;;; external function
-(defun string-to-octets (string &key (external-format *default-external-format*)
-				     (replace-fn #'illegal-character-error))
-  (declare (optimize (speed 3) (debug 1) (safety 0))
+(defun string-to-octets (string &key (external-format *default-external-format*))
+  (declare #.*fastest*
 	   (string string))
-  (ensure-function replace-fn)
-  (ensure-simple-characters string)
-  (locally
-   (declare (simple-characters string))
+  (ensure-simple-characters string
    (case (external-format-key external-format)
      (:|utf-8| (utf8-string-to-octets string))
-     (:|utf-16be| (utf16-string-to-octets string :be replace-fn))
-     (:|utf-16le| (utf16-string-to-octets string :le replace-fn))
+     (:|utf-16be| (utf16-string-to-octets string :be))
+     (:|utf-16le| (utf16-string-to-octets string :le))
      (t 
       (let* ((table (get-encode-table external-format))
-	     (code-limit (length (the simple-vector table)))
-	     (len (loop WITH len OF-TYPE fixnum = 0
-			FOR ch ACROSS string 
-			FOR cd = (char-code ch)
-			FOR octets = (and (< cd code-limit) (svref table cd))
-	            DO (when (null octets)
-			 (return))
-		        (incf len (length (the simple-octets octets)))
-	            FINALLY (return len))))
-	(if len
-	    (legal-string-to-octets string len table)
-	  (illegal-string-to-octets string table replace-fn)))))))
+	     (code-limit (length table))
+	     (including-illegal-character? nil)
+	     (len 0))
+	(declare (fixnum len))
+	(each-char-code (code string)
+	  (let ((octets (and (< code code-limit) (svref table code))))
+	    (when (null octets)
+	      (setf octets +UNKNOWN-OCTETS+
+		    including-illegal-character? t))
+	    (incf len (length (the simple-octets octets)))))
+	(if including-illegal-character?
+	    (illegal-string-to-octets string len table)
+	  (legal-string-to-octets string len table)))))))

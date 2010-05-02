@@ -2,10 +2,6 @@
   (:use :common-lisp)
   (:export string-to-octets
 	   octets-to-string
-	   octets-encoding-error ;; TODO
-	   octet-decoding-error  ;; TODO
-	   illegal-octet-error
-	   illegal-character-error
 	   *external-formats*
 	   *default-external-format*))
 (in-package :creole)
@@ -23,3 +19,6 @@
 
 (deftype optimize-hack-array-index () #+SBCL '(integer 0 100) 
                                       #-SBCL 'array-index)
+
+(defvar *fastest* '(optimize (speed 3) (debug 0) (safety 0) (compilation-speed 0)))
+
