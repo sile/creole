@@ -20,9 +20,11 @@
 
 (defmacro ensure-simple-characters (s &body body)
   `(let ((,s (etypecase ,s
-               (simple-base-string (make-array (length ,s) 
+               ,@(if (subtypep 'simple-base-string 'simple-characters)
+                     '()
+                   `((simple-base-string (make-array (length ,s) 
 					       :element-type 'character 
-					       :initial-contents ,s))
+					       :initial-contents ,s))))
 	       (simple-characters ,s)
 	       (string (muffle-warn (copy-seq ,s))))))
      (declare (simple-characters ,s))
