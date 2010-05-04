@@ -23,7 +23,7 @@
 
 (defun external-format-filename (external-format)
   (assert #1=(gethash external-format *external-format=>filename-map*)
-	  (external-format) "Undefined external-format ~S" external-format)
+	  (external-format) "Undefined external-format ~S. see: creole:*external-formats*" external-format)
   (values (symbol-name #1#)))
 
 (defun external-format-key (external-format)
