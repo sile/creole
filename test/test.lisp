@@ -21,6 +21,7 @@
 (let ((unicode-charset (coerce 
 			(loop FOR i FROM 0 BELOW char-code-limit 
 			      UNLESS (<= #xD800 i #xDFFF)
+			      #+CCL WHEN (code-char i)
 			      COLLECT (code-char i))
 			'string)))
   (loop FOR external-format IN '(:utf-16be :utf-16le :utf-8) DO
