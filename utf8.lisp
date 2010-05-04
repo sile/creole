@@ -22,9 +22,10 @@
 (defun utf8-octets-to-unicode(octets pos string j octets-len &aux (os octets))
   (macrolet ((with-validate (num exp)
                (declare (optimize (speed 0)))
-               `(if (and (< (+ ,num pos) octets-len)        ; out of bounds
-			 (/= (bit-val ,(- 6 num) octet) 0)  ; redundant expression
-			 ,@(loop FOR i fixnum FROM 1 TO num ; octet since the second
+               `(if (and (< (+ ,num pos) octets-len)            ; out of bounds
+			 (or (/= (bit-val ,(- 6 num) octet) 0)  ; redundant expression
+			     (>= (aref os (1+ pos)) ,(+ #b10000000 (ash 1 (- 7 num)))))
+			 ,@(loop FOR i fixnum FROM 1 TO num     ; octet since the second
 			     COLLECT `(10xxxxxx-p (aref os (+ ,i pos)))))
 		    (values ,exp 
 			    (the fixnum (+ ,(1+ num) pos))

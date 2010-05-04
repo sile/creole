@@ -64,9 +64,9 @@
 	       (len 0))
 	  (declare (fixnum len))
 	  (each-char-code (code string)
-	    (let ((octets (and (or (< code code-limit) (svref table code))
-			       (progn (setf including-illegal-character? t)
-				      +UNKNOWN-OCTETS+))))
+	    (let ((octets (or (and (< code code-limit) (svref table code))
+			      (progn (setf including-illegal-character? t)
+				     +UNKNOWN-OCTETS+))))
 	      (incf len (length (the simple-octets octets)))))
 	  (if including-illegal-character?
 	      (illegal-string-to-octets string len table)

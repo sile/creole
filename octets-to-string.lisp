@@ -24,14 +24,17 @@
 	 (buf (make-array len :element-type 'character))
 	 (tail-pos -1)
 	 (i 0)
+	 (legal-octets? t)
 	 (char nil))
     (declare (fixnum tail-pos i))
     (loop (setf (values char i) (to-unicode octets i trie))
 
-	  (setf (aref buf (incf tail-pos)) (or char +UNKNOWN-CHAR+))
+	  (setf (aref buf (incf tail-pos)) (or char 
+					       (progn (setf legal-octets? nil)
+						      +UNKNOWN-CHAR+)))
 	  (when (>= i len)
 	    (return)))
-    (subseq buf 0 (1+ tail-pos))))
+    (values (subseq buf 0 (1+ tail-pos)) legal-octets?)))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;;; external function
