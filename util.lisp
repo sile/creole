@@ -11,12 +11,13 @@
     #+SBCL (declare (sb-ext:muffle-conditions sb-ext:compiler-note))
     ,@body))
 
-(defmacro each-char-code ((code string &optional return) &body body)
-  (let ((char (gensym)))
-    `(loop FOR ,char ACROSS ,string
-	   FOR ,code = (char-code ,char) 
-       DO ,@body
-       FINALLY (return ,return))))
+(defmacro each-char-code ((code string &key return (start 0) end) &body body)
+  (let ((i (gensym)))
+    `(do* ((,i ,start (1+ ,i))
+	   (,code #1=(char-code (char ,string ,i)) #1#))
+	  ((>= ,i ,(or end `(length ,string))) ,return)
+       (declare (array-index ,i))
+       ,@body)))
 
 (defmacro ensure-simple-characters (s &body body)
   `(let ((,s (etypecase ,s

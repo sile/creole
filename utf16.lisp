@@ -29,13 +29,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; string => octets
-(defmacro utf16-string-to-octets (string endian)
+(defmacro utf16-string-to-octets (string start end endian)
   (symbol-macrolet ((p1 (if (eq endian :be) 8 0))
 		    (p2 (if (eq endian :be) 0 8)))
-    `(let* ((has-surrogate? (each-char-code (cd ,string nil)
+    `(let* ((has-surrogate? (each-char-code (cd ,string :return nil)
                               (when (>= cd #x10000)
 				(return t))))
-	    (buf-len (* (if has-surrogate? 4 2) (length ,string)))
+	    (buf-len (* (if has-surrogate? 4 2) (- ,end ,start)))
 	    (legal-octets? t)
 	    (octets (make-array buf-len :element-type 'octet))
 	    (i 0))
@@ -47,14 +47,16 @@
 				    `(setf (aref octets (+ i ,i)) ,o))
 			    (incf i ,n))))
          (if (not has-surrogate?)
-	     (each-char-code (cd ,string (values octets legal-octets?))
+	     (each-char-code (cd ,string :start ,start :end ,end
+					 :return (values octets legal-octets?))
 	       #1=(progn
 		    (when (<= #xD800 cd #xDFFF)
 		      (setf cd +UNKNOWN-CODE+
 			    legal-octets? nil))
 		    (add-octets (ldb (byte 8 ,p1) cd)
 				(ldb (byte 8 ,p2) cd))))
-	   (each-char-code (cd ,string (values (subseq octets 0 i) legal-octets?))
+	   (each-char-code (cd ,string :start ,start :end ,end
+                                       :return (values (subseq octets 0 i) legal-octets?))
 	     (if (< cd #x10000)
 		 #1#
 	       (let ((low  (low-surrogate  cd))
@@ -65,8 +67,8 @@
 			     (ldb (byte 8 ,p2) low))))))))))
 ;;;;;;;;;;;;;;;;;;;;
 ;;; octets => string
-(defmacro utf16-octets-to-string (octets endian)
-  `(let* ((octets-len (length ,octets))
+(defmacro utf16-octets-to-string (octets start end endian)
+  `(let* ((octets-len (- ,end ,start))
 	  (buf-len (ceiling octets-len 2))
 	  (buf (make-array buf-len :element-type 'character))
 	  (pos -1)
@@ -77,7 +79,7 @@
 				   legal-octets? nil)))
        (declare (inline add-char add-unk-char))
        (loop WITH surrogate = nil
-	     FOR i FROM 0 BELOW (1- octets-len) BY 2
+	     FOR i FROM ,start BELOW (1- ,end) BY 2
 	     FOR code = (,(if (eq endian :le) 'to-utf16le-code 'to-utf16be-code) ,octets i)
          DO
 	 (cond ((<= #xDC00 code #xDFFF)

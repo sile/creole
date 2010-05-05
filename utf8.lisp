@@ -19,10 +19,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; octets => string
-(defun utf8-octets-to-unicode(octets pos string j octets-len &aux (os octets))
+(defun utf8-octets-to-unicode(octets pos string j octets-end &aux (os octets))
   (macrolet ((with-validate (num exp)
                (declare (optimize (speed 0)))
-               `(if (and (< (+ ,num pos) octets-len)            ; out of bounds
+               `(if (and (< (+ ,num pos) octets-end)            ; out of bounds
 			 (or (/= (bit-val ,(- 6 num) octet) 0)  ; redundant expression
 			     (>= (aref os (1+ pos)) ,(+ #b10000000 (ash 1 (- 7 num)))))
 			 ,@(loop FOR i fixnum FROM 1 TO num     ; octet since the second
@@ -63,30 +63,30 @@
 	  (setf (aref string j) (code-char code))
 	  (values new-pos legal?)))))
 
-(defun utf8-octets-to-string (octets &aux (len (length octets)))
-  (let ((buf (make-array len :element-type 'character))
+(defun utf8-octets-to-string (octets start end)
+  (let ((buf (make-array (- end start) :element-type 'character))
 	(legal-octets? t)
 	(legal? t))
-    (do ((i 0)
+    (do ((i start)
 	 (j 0 (1+ j)))
-	((>= i len) (values (subseq buf 0 j) legal-octets?))
+	((>= i end) (values (subseq buf 0 j) legal-octets?))
       (declare (optimize-hack-array-index j i))
-      (setf (values i legal?) (utf8-octets-to-unicode octets i buf j len))
+      (setf (values i legal?) (utf8-octets-to-unicode octets i buf j end))
       (unless legal?
 	(setf legal-octets? nil)))))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; string => octets
-(defun utf8-octets-length (string &aux (len 0))
-  (each-char-code (cd string len)
+(defun utf8-octets-length (string start end &aux (len 0))
+  (each-char-code (cd string :start start :end end :return len)
     (incf (the array-index len)
 	  (cond ((< cd #x80)    1)
 		((< cd #x800)   2)
 		((< cd #x10000) 3)
 		(t              4)))))
 
-(defun utf8-string-to-octets (string)
-  (let ((octets (make-array (utf8-octets-length string)  :element-type 'octet))
+(defun utf8-string-to-octets (string start end)
+  (let ((octets (make-array (utf8-octets-length string start end) :element-type 'octet))
 	(i 0))
     (declare (optimize-hack-array-index i))
     (macrolet ((add-octets (&rest octet-list &aux (n (length octet-list)))
@@ -95,7 +95,7 @@
 				 FOR o IN octet-list COLLECT
                              `(setf (aref octets (+ i ,i)) ,o))
 			 (incf i ,n))))
-      (each-char-code (cd string)
+      (each-char-code (cd string :start start :end end)
         (cond ((< cd #x80)
 	       (add-octets cd))
 	      ((< cd #x800)
