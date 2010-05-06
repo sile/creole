@@ -30,7 +30,7 @@
   `(multiple-value-bind (,s ,start ,end)
      (etypecase ,s
        (simple-characters (values ,s ,start ,end))
-       (string (values (to-simple-characters ,s ,start ,end) ,start ,end)))
+       (string (values (to-simple-characters ,s ,start ,end) 0 (- ,end ,start))))
      (declare (simple-characters ,s))
      ,@body))
   
