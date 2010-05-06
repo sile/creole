@@ -1,6 +1,6 @@
 (in-package :creole)
 
-(declaim (inline read-little-endian-byte to-signed))
+(declaim (inline read-little-endian-byte to-signed to-simple-characters))
 
 (defmacro a.if (exp then else)
   `(let ((it ,exp))
@@ -19,15 +19,18 @@
        (declare (array-index ,i))
        ,@body)))
 
-(defmacro ensure-simple-characters (s &body body)
-  `(let ((,s (etypecase ,s
-               ,@(if (subtypep 'simple-base-string 'simple-characters)
-                     '()
-                   `((simple-base-string (make-array (length ,s) 
-					       :element-type 'character 
-					       :initial-contents ,s))))
-	       (simple-characters ,s)
-	       (string (muffle-warn (copy-seq ,s))))))
+(defun to-simple-characters (source start end)
+  (let ((dist (make-array (- end start) :element-type 'character)))
+    (loop FOR i FROM start BELOW end 
+	  FOR j FROM 0 DO
+      (setf (aref dist j) (muffle-warn (aref source i))))
+    dist))
+
+(defmacro ensure-simple-characters ((s start end) &body body)
+  `(multiple-value-bind (,s ,start ,end)
+     (etypecase ,s
+       (simple-characters (values ,s ,start ,end))
+       (string (values (to-simple-characters ,s ,start ,end) ,start ,end)))
      (declare (simple-characters ,s))
      ,@body))
   

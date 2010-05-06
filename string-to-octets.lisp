@@ -55,7 +55,7 @@
 				     (start 0)
 				     (end (length string)))
   (declare #.*interface*)
-  (ensure-simple-characters string
+  (ensure-simple-characters (string start end)
    (let ((end (min end (length string))))
      (declare #.*fastest*)
      (when (> start end)
