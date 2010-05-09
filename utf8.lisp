@@ -77,16 +77,16 @@
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; string => octets
-(defun utf8-octets-length (string start end &aux (len 0))
-  (each-char-code (cd string :start start :end end :return len)
+(defun utf8-octets-length (charseq &aux (len 0))
+  (each-code (cd charseq :return len)
     (incf (the array-index len)
 	  (cond ((< cd #x80)    1)
 		((< cd #x800)   2)
 		((< cd #x10000) 3)
 		(t              4)))))
 
-(defun utf8-string-to-octets (string start end)
-  (let ((octets (make-array (utf8-octets-length string start end) :element-type 'octet))
+(defun utf8-string-to-octets (charseq)
+  (let ((octets (make-array (utf8-octets-length charseq) :element-type 'octet))
 	(i 0))
     (declare (optimize-hack-array-index i))
     (macrolet ((add-octets (&rest octet-list &aux (n (length octet-list)))
@@ -95,7 +95,7 @@
 				 FOR o IN octet-list COLLECT
                              `(setf (aref octets (+ i ,i)) ,o))
 			 (incf i ,n))))
-      (each-char-code (cd string :start start :end end)
+      (each-code (cd charseq)
         (cond ((< cd #x80)
 	       (add-octets cd))
 	      ((< cd #x800)

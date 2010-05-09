@@ -19,6 +19,11 @@
        (declare (array-index ,i))
        ,@body)))
 
+(defmacro each-code ((code charseq &key return) &body body)
+  `(charseq:each (#1=#:char ,charseq ,return)
+     (let ((,code (char-code #1#)))
+       ,@body)))
+
 (defun to-simple-characters (source start end)
   (let ((dist (make-array (- end start) :element-type 'character)))
     (loop FOR i FROM start BELOW end 
@@ -26,6 +31,7 @@
       (setf (aref dist j) (muffle-warn (aref source i))))
     dist))
 
+;; TODO: delete
 (defmacro ensure-simple-characters ((s start end) &body body)
   `(multiple-value-bind (,s ,start ,end)
      (etypecase ,s

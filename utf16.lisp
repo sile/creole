@@ -29,13 +29,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;
 ;;; string => octets
-(defmacro utf16-string-to-octets (string start end endian)
+(defmacro utf16-string-to-octets (charseq endian)
   (symbol-macrolet ((p1 (if (eq endian :be) 8 0))
 		    (p2 (if (eq endian :be) 0 8)))
-    `(let* ((has-surrogate? (each-char-code (cd ,string :return nil)
+    `(let* ((has-surrogate? (each-code (cd ,charseq :return nil)
                               (when (>= cd #x10000)
 				(return t))))
-	    (buf-len (* (if has-surrogate? 4 2) (- ,end ,start)))
+	    (buf-len (* (if has-surrogate? 4 2) (charseq:length ,charseq)))
 	    (legal-octets? t)
 	    (octets (make-array buf-len :element-type 'octet))
 	    (i 0))
@@ -47,16 +47,14 @@
 				    `(setf (aref octets (+ i ,i)) ,o))
 			    (incf i ,n))))
          (if (not has-surrogate?)
-	     (each-char-code (cd ,string :start ,start :end ,end
-					 :return (values octets legal-octets?))
+	     (each-code (cd ,charseq :return (values octets legal-octets?))
 	       #1=(progn
 		    (when (<= #xD800 cd #xDFFF)
 		      (setf cd +UNKNOWN-CODE+
 			    legal-octets? nil))
 		    (add-octets (ldb (byte 8 ,p1) cd)
 				(ldb (byte 8 ,p2) cd))))
-	   (each-char-code (cd ,string :start ,start :end ,end
-                                       :return (values (subseq octets 0 i) legal-octets?))
+	   (each-code (cd ,charseq :return (values (subseq octets 0 i) legal-octets?))
 	     (if (< cd #x10000)
 		 #1#
 	       (let ((low  (low-surrogate  cd))
