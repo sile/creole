@@ -58,7 +58,7 @@
 				     (start 0)
 				     (end (length string)))
   (declare #.*interface*)
-  (let ((charseq (charseq:make string :start start :end end)))
+  (charseq:with-dynamic-extent (charseq string :start start :end end)
     (declare #.*fastest*)
     
     (case (external-format-key external-format)
