@@ -1,0 +1,9 @@
+[API]
+-- Variable# *default-external-format*
+-- Variable# *external-formats*
+-- Function# string-to-octets string &key external-format start end
+-- Function# octets-to-string octets &key external-format start end
+
+
+[Project URL]
+- http://sourceforge.jp/projects/creole/
