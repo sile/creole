@@ -2,7 +2,7 @@
 
 (defsystem creole
   :name "creole"
-  :version "0.1.0"
+  :version "0.1.1"
   :author "Takeru Ohta"
   :description "Convert between multibyte charset and unicode string"
   :depends-on (:charseq)
