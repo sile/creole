@@ -33,9 +33,6 @@
     (setf #1# (load-encode-table external-format))))
 
 (defun legal-string-to-octets (charseq octets-length table)
-  (declare #.*fastest*
-	   (charseq:charseq charseq)
-	   (optimize-hack-array-index octets-length))
   (let ((buf (make-array octets-length :element-type 'octet))
 	(i -1))
     (each-code (code charseq :return (values buf t))
