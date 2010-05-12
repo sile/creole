@@ -7,7 +7,7 @@
      (if it ,then ,else)))
 
 (defmacro each-code ((code charseq &key return) &body body)
-  `(charseq:each (#1=#:char ,charseq ,return)
+  `(charseq:each (#1=#:char ,charseq ,return t)
      (let ((,code (char-code #1#)))
        ,@body)))
 
