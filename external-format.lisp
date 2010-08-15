@@ -2,7 +2,6 @@
 
 (declaim (inline external-format-filename external-format-key))
 
-
 (defvar *default-external-format* :utf-8)
 (defvar *external-formats*
   (loop FOR path IN (remove-if-not #'pathname-name 

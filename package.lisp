@@ -7,9 +7,9 @@
 (in-package :creole)
 
 (defvar *data-dir* 
-  (make-pathname 
-   :directory (pathname-directory 
-	       (merge-pathnames #P"data/" *load-pathname*))))
+  #.(make-pathname 
+     :directory (pathname-directory 
+		 (merge-pathnames #P"data/" (or *compile-file-pathname* *load-pathname*)))))
 						       
 (deftype octet () '(unsigned-byte 8))
 (deftype simple-octets () '(simple-array octet))
