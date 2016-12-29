@@ -1,3 +1,7 @@
+Common Lispでバイト列とユニコード文字列の相互変換をポータブルに行うためのライブラリ。
+ユニコード(UTF32)対応処理系にのみ対応。 ※ 現状はSBCL向けに最適化されている
+(2010/05/05)
+
 [API]
 -- Variable# *default-external-format*
 -- Variable# *external-formats*
